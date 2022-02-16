@@ -559,7 +559,7 @@ func (c *client) Query(q Query) (*Response, error) {
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
-	}
+	}()
 
 	if err := checkResponse(resp); err != nil {
 		return nil, err
