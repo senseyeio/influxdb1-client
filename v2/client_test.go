@@ -160,13 +160,19 @@ func TestClient_Query(t *testing.T) {
 
 func TestClient_QueryWithRP(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		params := r.URL.Query()
-		if got, exp := params.Get("db"), "db0"; got != exp {
-			t.Errorf("unexpected db query parameter: %s != %s", exp, got)
+		err := r.ParseForm()
+		if err != nil {
+			t.Errorf("failed to parse form data: %v", err)
 		}
-		if got, exp := params.Get("rp"), "rp0"; got != exp {
-			t.Errorf("unexpected rp query parameter: %s != %s", exp, got)
+
+		if got, exp := r.Form.Get("db"), "db0"; got != exp {
+			t.Errorf("unexpected db query parameter: %s != %s", got, exp)
 		}
+
+		if got, exp := r.Form.Get("rp"), "rp0"; got != exp {
+			t.Errorf("unexpected rp query parameter: %s != %s", got, exp)
+		}
+
 		var data Response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

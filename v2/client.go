@@ -544,14 +544,6 @@ func (c *client) Query(q Query) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	params := req.URL.Query()
-	if q.Chunked {
-		params.Set("chunked", "true")
-		if q.ChunkSize > 0 {
-			params.Set("chunk_size", strconv.Itoa(q.ChunkSize))
-		}
-		req.URL.RawQuery = params.Encode()
-	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -613,16 +605,12 @@ func (c *client) Query(q Query) (*Response, error) {
 
 // QueryAsChunk sends a command to the server and returns the Response.
 func (c *client) QueryAsChunk(q Query) (*ChunkedResponse, error) {
+	q.Chunked = true
+
 	req, err := c.createDefaultRequest(q)
 	if err != nil {
 		return nil, err
 	}
-	params := req.URL.Query()
-	params.Set("chunked", "true")
-	if q.ChunkSize > 0 {
-		params.Set("chunk_size", strconv.Itoa(q.ChunkSize))
-	}
-	req.URL.RawQuery = params.Encode()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -666,38 +654,43 @@ func (c *client) createDefaultRequest(q Query) (*http.Request, error) {
 	u := c.url
 	u.Path = path.Join(u.Path, "query")
 
+	formData := url.Values{}
+	formData.Set("q", q.Command)
+	formData.Set("db", q.Database)
+	if q.RetentionPolicy != "" {
+		formData.Set("rp", q.RetentionPolicy)
+	}
+
 	jsonParameters, err := json.Marshal(q.Parameters)
 	if err != nil {
 		return nil, err
 	}
+	formData.Set("params", string(jsonParameters))
 
-	req, err := http.NewRequest("POST", u.String(), nil)
+	if q.Precision != "" {
+		formData.Set("epoch", q.Precision)
+	}
+
+	if q.Chunked {
+		formData.Set("chunked", "true")
+		if q.ChunkSize > 0 {
+			formData.Set("chunk_size", strconv.Itoa(q.ChunkSize))
+		}
+	}
+
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(formData.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", c.useragent)
 
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
 
-	params := req.URL.Query()
-	params.Set("q", q.Command)
-	params.Set("db", q.Database)
-	if q.RetentionPolicy != "" {
-		params.Set("rp", q.RetentionPolicy)
-	}
-	params.Set("params", string(jsonParameters))
-
-	if q.Precision != "" {
-		params.Set("epoch", q.Precision)
-	}
-	req.URL.RawQuery = params.Encode()
-
 	return req, nil
-
 }
 
 // duplexReader reads responses and writes it to another writer while
